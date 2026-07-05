@@ -26,6 +26,9 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['tymly-logo.jpg'],
+      workbox: {
+        maximumFileSizeToCacheInBytes: 4194304, // 4 MB
+      },
       manifest: {
         name: 'Tymly Check-In',
         short_name: 'Tymly',
@@ -45,6 +48,9 @@ export default defineConfig({
       }
     })
   ],
+  build: {
+    chunkSizeWarningLimit: 3000,
+  },
   resolve: {
     alias: {
       // Alias @ to the src directory
