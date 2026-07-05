@@ -43,7 +43,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               .single();
               
             if (error) {
-              console.error('Error fetching adminUser:', error);
+              // PGRST116 means no rows returned from single()
+              if (error.code === 'PGRST116') {
+                const { data: newUser, error: insertError } = await supabase
+                  .from('admin_users')
+                  .insert({
+                    email: session.user.email,
+                    full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Unknown User',
+                    role: session.user.email === 'mansaidus@gmail.com' ? 'super_admin' : 'admin'
+                  })
+                  .select()
+                  .single();
+                  
+                if (newUser) {
+                  adminUser = newUser;
+                  break;
+                } else if (insertError) {
+                  console.error('Error auto-creating admin user:', insertError);
+                }
+              } else {
+                console.error('Error fetching adminUser:', error);
+              }
             }
               
             if (data) {
@@ -110,7 +130,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .single();
 
           if (error) {
-            console.error('Error fetching adminUser in SIGNED_IN:', error);
+            if (error.code === 'PGRST116') {
+              const { data: newUser, error: insertError } = await supabase
+                .from('admin_users')
+                .insert({
+                  email: session.user.email,
+                  full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Unknown User',
+                  role: session.user.email === 'mansaidus@gmail.com' ? 'super_admin' : 'admin'
+                })
+                .select()
+                .single();
+                
+              if (newUser) {
+                adminUser = newUser;
+                break;
+              } else if (insertError) {
+                console.error('Error auto-creating admin user in SIGNED_IN:', insertError);
+              }
+            } else {
+              console.error('Error fetching adminUser in SIGNED_IN:', error);
+            }
           }
 
           if (data) {
