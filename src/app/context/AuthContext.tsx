@@ -49,8 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   .from('admin_users')
                   .insert({
                     email: session.user.email,
-                    full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Unknown User',
-                    role: session.user.email === 'mansaidus@gmail.com' ? 'super_admin' : 'admin'
+                    full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Unknown User'
                   })
                   .select()
                   .single();
@@ -135,8 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 .from('admin_users')
                 .insert({
                   email: session.user.email,
-                  full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Unknown User',
-                  role: session.user.email === 'mansaidus@gmail.com' ? 'super_admin' : 'admin'
+                  full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Unknown User'
                 })
                 .select()
                 .single();

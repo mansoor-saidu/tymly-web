@@ -11,13 +11,13 @@ RUN npm install
 # Copy source code
 COPY . .
 
-# Set default build arguments (from user's .env)
-ARG VITE_GOOGLE_MAPS_API_KEY=AIzaSyA2ynDzReEexJbySyt2jOtAg-FZJVyMJPo
-ARG VITE_SUPABASE_URL=https://yyazkvilalkvnbywdtzz.supabase.co
-ARG VITE_SUPABASE_ANON_KEY=sb_publishable_uIxJalyWmGuTDIbQbItRMg_YtVPICf8
-ARG VITE_POSTHOG_KEY=phc_oMWvVMNBCDb3GwoXGKEHLS7GpdzqxwN9wgxNnRYv73EJ
-ARG VITE_POSTHOG_PROJECT_TOKEN=phc_oMWvVMNBCDb3GwoXGKEHLS7GpdzqxwN9wgxNnRYv73EJ
-ARG VITE_POSTHOG_HOST=https://us.i.posthog.com
+# Define build arguments
+ARG VITE_GOOGLE_MAPS_API_KEY
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
+ARG VITE_POSTHOG_KEY
+ARG VITE_POSTHOG_PROJECT_TOKEN
+ARG VITE_POSTHOG_HOST
 
 # Convert ARGs to ENVs so Vite can use them during the build step
 ENV VITE_GOOGLE_MAPS_API_KEY=$VITE_GOOGLE_MAPS_API_KEY
