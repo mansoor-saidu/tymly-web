@@ -1,0 +1,50 @@
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install all dependencies
+RUN npm install
+
+# Copy source code
+COPY . .
+
+# Set default build arguments (from user's .env)
+ARG VITE_GOOGLE_MAPS_API_KEY=AIzaSyA2ynDzReEexJbySyt2jOtAg-FZJVyMJPo
+ARG VITE_SUPABASE_URL=https://yyazkvilalkvnbywdtzz.supabase.co
+ARG VITE_SUPABASE_ANON_KEY=sb_publishable_uIxJalyWmGuTDIbQbItRMg_YtVPICf8
+ARG VITE_POSTHOG_KEY=phc_oMWvVMNBCDb3GwoXGKEHLS7GpdzqxwN9wgxNnRYv73EJ
+ARG VITE_POSTHOG_PROJECT_TOKEN=phc_oMWvVMNBCDb3GwoXGKEHLS7GpdzqxwN9wgxNnRYv73EJ
+ARG VITE_POSTHOG_HOST=https://us.i.posthog.com
+
+# Convert ARGs to ENVs so Vite can use them during the build step
+ENV VITE_GOOGLE_MAPS_API_KEY=$VITE_GOOGLE_MAPS_API_KEY
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
+ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
+ENV VITE_POSTHOG_KEY=$VITE_POSTHOG_KEY
+ENV VITE_POSTHOG_PROJECT_TOKEN=$VITE_POSTHOG_PROJECT_TOKEN
+ENV VITE_POSTHOG_HOST=$VITE_POSTHOG_HOST
+
+# Build the project (Vite will bake the above ENVs into the dist files)
+RUN npm run build
+
+# Stage 2: Serve the built application
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+# Copy package files and install production dependencies
+COPY package*.json ./
+RUN npm install --omit=dev
+
+# Copy the built output from builder
+COPY --from=builder /app/dist ./dist
+
+# Expose the default port (must match the port your start script uses)
+ENV PORT=3000
+EXPOSE 3000
+
+# Start the application using 'serve'
+CMD ["npm", "start"]
