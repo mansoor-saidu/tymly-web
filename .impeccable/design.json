@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-05T12:19:00Z",
+  "title": "Design System: Employee Attendance Tracking System",
+  "extensions": {
+    "colorMeta": {
+      "primary": { "role": "primary", "displayName": "Midnight Blue", "canonical": "#030213", "tonalRamp": ["#010105", "#02010a", "#030213", "#1a182b", "#322f46", "#4e4b65", "#6e6a88", "#928db0", "#b9b4db"] },
+      "background": { "role": "neutral", "displayName": "Warm Ivory", "canonical": "#fffaef", "tonalRamp": ["#33322f", "#66645f", "#99968e", "#ccc8bd", "#e6e1d4", "#f2ebd9", "#fffaef", "#fffcf5", "#fffefb"] },
+      "muted": { "role": "neutral", "displayName": "Muted Cloud", "canonical": "#ececf0", "tonalRamp": ["#2f2f30", "#5e5e60", "#8d8d90", "#bcbcc0", "#d4d4d8", "#e0e0e4", "#ececf0", "#f5f5f7", "#fafafb"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Hero greetings and primary tablet check-in states." },
+      "headline": { "displayName": "Headline", "purpose": "Section headers on the dashboard." }
+    },
+    "shadows": [
+      { "name": "hover-elevation", "value": "0 4px 12px rgba(0,0,0,0.05)", "purpose": "Tooltips, popovers, and elevated hover states." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Tactile and confident primary action button.",
+      "html": "<button class=\"ds-btn-primary\">Check In Now</button>",
+      "css": ".ds-btn-primary { background: #030213; color: #ffffff; padding: 8px 16px; font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500; border: none; border-radius: 8px; cursor: pointer; transition: opacity 0.2s; } .ds-btn-primary:hover { opacity: 0.9; }"
+    },
+    {
+      "name": "Dashboard Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Resting flat container for dashboard metrics.",
+      "html": "<div class=\"ds-card\"><h3>Total Employees</h3><p>142</p></div>",
+      "css": ".ds-card { background: #fffdf5; border: 1px solid #ececf0; border-radius: 10px; padding: 24px; font-family: 'Inter', sans-serif; color: #030213; } .ds-card h3 { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 16px; margin: 0 0 8px 0; } .ds-card p { font-size: 32px; font-weight: 700; margin: 0; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Modern Workspace",
+    "overview": "This design system aims for approachability and contemporary design, breaking away from the stiff, generic SaaS clichés of enterprise HR software. It uses a warm, tactile palette anchored by a sharp, highly legible typography scale. The interface optimizes for speed—particularly for field and office workers interacting with the check-in tablet—while remaining incredibly dense and focused for managers reviewing data on desktop dashboards. It actively rejects any generic, template-driven aesthetics.",
+    "keyCharacteristics": [
+      "Warm, inviting core backgrounds paired with strong, high-contrast typography.",
+      "Fast, predictable interactions.",
+      "Flat surfaces that rely on distinct borders rather than soft shadows.",
+      "No generic SaaS boilerplate scaffolding."
+    ],
+    "rules": [
+      { "name": "The Warm Contrast Rule", "body": "Muted gray text must never be placed on the Warm Ivory background. Legibility is paramount, and any gray must be bumped toward Midnight Blue to ensure ≥4.5:1 contrast.", "section": "colors" },
+      { "name": "The Tight Headline Rule", "body": "Headings use a letter-spacing of -0.025em to remain cohesive and tightly bound. Avoid loose tracking on large text.", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "Surfaces are flat at rest. Rely on 1px borders and background tints to separate cards from the canvas, never soft ambient shadows.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use exact borders (1px solid var(--border)) to separate content instead of drop shadows.",
+      "Do ensure tablet touch targets are massive and immediately actionable.",
+      "Do use Plus Jakarta Sans for headers to maintain the \"Modern Workspace\" vibe."
+    ],
+    "donts": [
+      "Don't make it look like a generic SaaS template. Avoid standard cookie-cutter layouts that lack personality.",
+      "Don't use side-stripe borders (e.g., a colored border-left on a card) as a decoration. Use full borders or background tints.",
+      "Don't use tiny uppercase tracked eyebrows above every section. Let the headings speak for themselves.",
+      "Don't use soft ambient drop shadows (box-shadow: 0 10px 30px...) to lift resting cards."
+    ]
+  }
+}

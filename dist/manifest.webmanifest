@@ -1,0 +1,1 @@
+{"name":"Tymly Check-In","short_name":"Tymly","description":"Employee Attendance Check-In","start_url":"/check-in","display":"standalone","background_color":"#ffffff","theme_color":"#000000","lang":"en","scope":"/","icons":[{"src":"tymly-logo.jpg","sizes":"192x192 512x512","type":"image/jpeg","purpose":"any maskable"}]}
