@@ -1,0 +1,17 @@
+name: Daily Attendance Summary Cron
+
+on:
+  schedule:
+    # Runs at 18:00 (6 PM) UTC every day. Adjust as needed for your timezone.
+    - cron: '0 18 * * *'
+  workflow_dispatch: # Allows you to manually trigger the cron from the Actions tab
+
+jobs:
+  trigger-summary:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase Edge Function
+        run: |
+          curl -X POST "${{ secrets.VITE_SUPABASE_URL }}/functions/v1/make-server-7456b3bc/send-daily-summary" \
+          -H "Content-Type: application/json" \
+          -H "Authorization: Bearer ${{ secrets.VITE_SUPABASE_ANON_KEY }}"
