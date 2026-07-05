@@ -103,6 +103,17 @@ app.post("/make-server-7456b3bc/verify-qr-token", async (c) => {
       return c.json({ valid: false, message: 'Failed to verify QR token' });
     }
 
+    // Check company status
+    const { data: company } = await supabase
+      .from('companies')
+      .select('status')
+      .eq('id', companyId)
+      .single();
+
+    if (company?.status === 'suspended') {
+      return c.json({ valid: false, message: 'Company account is suspended' });
+    }
+
     // Check version matches
     const versionNum = parseInt(version, 10);
     if (versionNum !== settings.qr_code_version) {
@@ -214,6 +225,17 @@ app.post("/make-server-7456b3bc/log-attendance", async (c) => {
     }
 
     const companyId = employee.company_id;
+
+    // Check company status
+    const { data: company } = await supabase
+      .from('companies')
+      .select('status')
+      .eq('id', companyId)
+      .single();
+
+    if (company?.status === 'suspended') {
+      return c.json({ success: false, error: 'Company account is suspended' }, 403);
+    }
 
     // Fetch system settings
     const { data: settings, error: settingsError } = await supabase

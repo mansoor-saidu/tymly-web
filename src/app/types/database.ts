@@ -3,6 +3,7 @@
 export interface Company {
   id: string;
   name: string;
+  status?: 'active' | 'suspended';
   created_at: string;
   updated_at: string;
 }
@@ -88,6 +89,7 @@ export interface AdminUser {
   how_did_you_hear?: string | null;
   profile_picture_url?: string | null;
   role: 'admin' | 'super_admin';
+  company_status?: 'active' | 'suspended';
   is_master_admin: boolean;
   created_at: string;
   updated_at: string;

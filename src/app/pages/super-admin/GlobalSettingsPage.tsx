@@ -49,6 +49,7 @@ export default function GlobalSettingsPage() {
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'super_admin'>('all');
   const [search, setSearch] = useState('');
   const [confirmingDemote, setConfirmingDemote] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'tenants' | 'employees'>('tenants');
 
   useEffect(() => {
     posthog.capture('$pageview', { page: 'super_admin_global_settings', role: 'super_admin' });
@@ -59,11 +60,23 @@ export default function GlobalSettingsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('admin_users')
-        .select('*')
+        .select('*, companies(status)')
         .order('created_at', { ascending: false });
       if (error) throw error;
       posthog.capture('super_admin_users_loaded', { count: data?.length });
-      return data as AdminUser[];
+      return data as (AdminUser & { companies?: { status: string } })[];
+    },
+  });
+
+  const { data: allPlatformEmployees, isLoading: employeesLoading } = useQuery({
+    queryKey: ['super-admin-all-employees'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('employees')
+        .select('*, companies(name)')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
     },
   });
 
@@ -112,18 +125,46 @@ export default function GlobalSettingsPage() {
     },
   });
 
-  const changeRoleMutation = useMutation({
-    mutationFn: async ({ userId, role }: { userId: string; role: string }) => {
-      const { error } = await supabase.from('admin_users').update({ role }).eq('id', userId);
+  const resetAccountMutation = useMutation({
+    mutationFn: async ({ userId, companyId }: { userId: string; companyId?: string | null }) => {
+      // Reset admin_user
+      const { error } = await supabase.from('admin_users').update({
+        business_name: null,
+        phone_number: null,
+        employee_size: null,
+        how_did_you_hear: null,
+        company_id: null
+      }).eq('id', userId);
+      
       if (error) throw error;
+
+      // Delete system settings and company if they exist to start fresh
+      if (companyId) {
+        await supabase.from('system_settings').delete().eq('company_id', companyId);
+        await supabase.from('companies').delete().eq('id', companyId);
+      }
     },
-    onSuccess: (_, vars) => {
-      posthog.capture('super_admin_role_changed', { user_id: vars.userId, new_role: vars.role });
-      toast.success(`Role updated to ${vars.role === 'super_admin' ? 'Super Admin' : 'Admin'}.`);
+    onSuccess: () => {
+      posthog.capture('super_admin_account_reset');
+      toast.success('Account reset successfully. The user will be prompted to onboard again.');
       setConfirmingDemote(null);
       queryClient.invalidateQueries({ queryKey: ['super-admin-all-users'] });
     },
-    onError: (e: any) => toast.error('Failed: ' + e.message),
+    onError: (e: any) => toast.error('Failed to reset account: ' + e.message),
+  });
+
+  const toggleSuspendCompanyMutation = useMutation({
+    mutationFn: async ({ companyId, status }: { companyId: string; status: 'active' | 'suspended' }) => {
+      if (!companyId) throw new Error("No company ID found for this user");
+      const { error } = await supabase.from('companies').update({ status }).eq('id', companyId);
+      if (error) throw error;
+    },
+    onSuccess: (_, vars) => {
+      posthog.capture('super_admin_company_suspended', { company_id: vars.companyId, status: vars.status });
+      toast.success(`Company marked as ${vars.status}.`);
+      queryClient.invalidateQueries({ queryKey: ['super-admin-all-users'] });
+    },
+    onError: (e: any) => toast.error('Failed to update status: ' + e.message),
   });
 
   // Derived stats
@@ -280,79 +321,103 @@ export default function GlobalSettingsPage() {
         </div>
 
         {/* ───────────────────────────────────────────────── */}
-        {/* USER ROLE MANAGEMENT — the real section          */}
+        {/* PLATFORM MANAGEMENT (Tabs)                         */}
         {/* ───────────────────────────────────────────────── */}
         <div className="bg-white border border-[#ececf0] rounded-[10px] overflow-hidden">
-
-          {/* Section header */}
-          <div className="px-6 py-5 border-b border-[#ececf0]">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          
+          {/* Section header & Tabs */}
+          <div className="px-6 pt-5 border-b border-[#ececf0]">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2 mb-0.5">
                   <Shield className="w-4 h-4 text-[#030213]" />
                   <h2 className="text-base font-bold text-[#030213]" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '-0.025em' }}>
-                    User Role Management
+                    Platform Directory
                   </h2>
                 </div>
                 <p className="text-sm text-[#6b7280]">
-                  Control access levels across the platform. Role changes take effect on the user's next login.
+                  Manage tenants, businesses, and global employee records.
                 </p>
               </div>
+            </div>
 
-              {/* Role summary pills */}
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => setRoleFilter('all')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-                    roleFilter === 'all'
-                      ? 'bg-[#030213] text-white border-[#030213]'
-                      : 'bg-white text-[#6b7280] border-[#ececf0] hover:bg-[#f9f9f9]'
-                  }`}
-                >
-                  All ({allUsers?.length ?? 0})
-                </button>
-                <button
-                  onClick={() => setRoleFilter('super_admin')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-                    roleFilter === 'super_admin'
-                      ? 'bg-rose-600 text-white border-rose-600'
-                      : 'bg-white text-[#6b7280] border-[#ececf0] hover:bg-[#f9f9f9]'
-                  }`}
-                >
-                  Super Admins ({superAdmins})
-                </button>
-                <button
-                  onClick={() => setRoleFilter('admin')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-                    roleFilter === 'admin'
-                      ? 'bg-[#030213] text-white border-[#030213]'
-                      : 'bg-white text-[#6b7280] border-[#ececf0] hover:bg-[#f9f9f9]'
-                  }`}
-                >
-                  Admins ({regularAdmins})
-                </button>
+            <div className="flex items-center gap-6 mt-6">
+              <button
+                onClick={() => setActiveTab('tenants')}
+                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'tenants' ? 'border-[#030213] text-[#030213]' : 'border-transparent text-[#6b7280] hover:text-[#030213]'
+                }`}
+              >
+                Tenants & Role Management
+              </button>
+              <button
+                onClick={() => setActiveTab('employees')}
+                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'employees' ? 'border-[#030213] text-[#030213]' : 'border-transparent text-[#6b7280] hover:text-[#030213]'
+                }`}
+              >
+                Global Employee Directory
+              </button>
+            </div>
+          </div>
+
+          {activeTab === 'tenants' && (
+            <>
+              {/* Search & Filters */}
+              <div className="px-6 py-4 flex flex-col sm:flex-row gap-4 items-center justify-between bg-[#fffdf5] border-b border-[#ececf0]">
+                {/* Search */}
+                <div className="relative w-full sm:max-w-md">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9ca3af]" />
+                  <input
+                    type="text"
+                    placeholder="Search by name, email, or business…"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 text-sm bg-white border border-[#ececf0] rounded-md focus:outline-none focus:border-[#030213]/30 focus:ring-1 focus:ring-[#030213]/10 placeholder:text-[#c4c4c4] transition"
+                  />
+                </div>
+                
+                {/* Role summary pills */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => setRoleFilter('all')}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+                      roleFilter === 'all'
+                        ? 'bg-[#030213] text-white border-[#030213]'
+                        : 'bg-white text-[#6b7280] border-[#ececf0] hover:bg-[#f9f9f9]'
+                    }`}
+                  >
+                    All ({allUsers?.length ?? 0})
+                  </button>
+                  <button
+                    onClick={() => setRoleFilter('super_admin')}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+                      roleFilter === 'super_admin'
+                        ? 'bg-rose-600 text-white border-rose-600'
+                        : 'bg-white text-[#6b7280] border-[#ececf0] hover:bg-[#f9f9f9]'
+                    }`}
+                  >
+                    Super Admins ({superAdmins})
+                  </button>
+                  <button
+                    onClick={() => setRoleFilter('admin')}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+                      roleFilter === 'admin'
+                        ? 'bg-[#030213] text-white border-[#030213]'
+                        : 'bg-white text-[#6b7280] border-[#ececf0] hover:bg-[#f9f9f9]'
+                    }`}
+                  >
+                    Admins ({regularAdmins})
+                  </button>
+                </div>
               </div>
-            </div>
 
-            {/* Search */}
-            <div className="relative mt-4">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9ca3af]" />
-              <input
-                type="text"
-                placeholder="Search by name, email, or business…"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 text-sm bg-[#fffaef] border border-[#ececf0] rounded-md focus:outline-none focus:border-[#030213]/30 focus:ring-1 focus:ring-[#030213]/10 placeholder:text-[#c4c4c4] transition"
-              />
-            </div>
-          </div>
-
-          {/* Table header */}
-          <div className="grid grid-cols-[1fr_1fr_120px_140px_180px] px-6 py-2.5 bg-[#fffaef] border-b border-[#ececf0]">
-            {['User', 'Business', 'Team Size', 'Role', 'Actions'].map(h => (
-              <span key={h} className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af]">{h}</span>
-            ))}
-          </div>
+              {/* Table header */}
+              <div className="grid grid-cols-[1fr_1fr_120px_140px_180px] px-6 py-2.5 bg-[#fffaef] border-b border-[#ececf0]">
+                {['User', 'Business', 'Team Size', 'Role', 'Actions'].map(h => (
+                  <span key={h} className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af]">{h}</span>
+                ))}
+              </div>
 
           {/* Rows */}
           <div className="divide-y divide-[#ececf0]">
@@ -383,6 +448,8 @@ export default function GlobalSettingsPage() {
                 const RoleIcon = meta.icon;
                 const isProtected = user.email === PROTECTED_EMAIL;
                 const isConfirmingThisUser = confirmingDemote === user.id;
+                const companyStatus = user.companies?.status || 'active';
+                const isSuspended = companyStatus === 'suspended';
 
                 return (
                   <div
@@ -409,10 +476,17 @@ export default function GlobalSettingsPage() {
                     </div>
 
                     {/* Business */}
-                    <div className="min-w-0">
-                      <p className="text-sm text-[#030213] truncate">{user.business_name || <span className="text-[#c4c4c4] italic">Not set</span>}</p>
-                      {user.phone_number && (
-                        <p className="text-xs text-[#9ca3af] truncate">{user.phone_number}</p>
+                    <div className="min-w-0 flex items-center gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm text-[#030213] truncate">{user.business_name || <span className="text-[#c4c4c4] italic">Not set</span>}</p>
+                        {user.phone_number && (
+                          <p className="text-xs text-[#9ca3af] truncate">{user.phone_number}</p>
+                        )}
+                      </div>
+                      {isSuspended && (
+                        <span className="shrink-0 px-2 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700">
+                          Suspended
+                        </span>
                       )}
                     </div>
 
@@ -429,57 +503,64 @@ export default function GlobalSettingsPage() {
                       </span>
                     </div>
 
-                    {/* Actions */}
-                    <div className="flex items-center gap-2">
-                      {isProtected ? (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
-                          <Lock className="w-3 h-3" />
-                          Protected
-                        </span>
-                      ) : user.role === 'admin' ? (
-                        <button
-                          onClick={() => {
-                            posthog.capture('super_admin_promote_clicked', { user_id: user.id, email: user.email });
-                            changeRoleMutation.mutate({ userId: user.id, role: 'super_admin' });
-                          }}
-                          disabled={changeRoleMutation.isPending}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-white text-rose-600 border border-rose-200 hover:bg-rose-50 hover:border-rose-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <Crown className="w-3 h-3" />
-                          Promote
-                        </button>
-                      ) : isConfirmingThisUser ? (
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs text-[#6b7280]">Confirm?</span>
+                      {/* Actions */}
+                      <div className="flex items-center gap-2">
+                        {isProtected ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                            <Lock className="w-3 h-3" />
+                            Protected
+                          </span>
+                        ) : isConfirmingThisUser ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs text-[#6b7280]">Reset?</span>
+                            <button
+                              onClick={() => {
+                                posthog.capture('super_admin_reset_confirmed', { user_id: user.id, email: user.email });
+                                resetAccountMutation.mutate({ userId: user.id, companyId: (user as any).company_id });
+                              }}
+                              disabled={resetAccountMutation.isPending}
+                              className="px-2.5 py-1 rounded-md text-xs font-medium bg-rose-600 text-white hover:bg-rose-700 transition-colors disabled:opacity-50"
+                            >
+                              Yes
+                            </button>
+                            <button
+                              onClick={() => setConfirmingDemote(null)}
+                              className="px-2.5 py-1 rounded-md text-xs font-medium border border-[#ececf0] text-[#6b7280] hover:bg-[#f9f9f9]"
+                            >
+                              No
+                            </button>
+                          </div>
+                        ) : (
                           <button
                             onClick={() => {
-                              posthog.capture('super_admin_demote_confirmed', { user_id: user.id, email: user.email });
-                              changeRoleMutation.mutate({ userId: user.id, role: 'admin' });
+                              posthog.capture('super_admin_reset_clicked', { user_id: user.id, email: user.email });
+                              setConfirmingDemote(user.id);
                             }}
-                            disabled={changeRoleMutation.isPending}
-                            className="px-2.5 py-1 rounded-md text-xs font-medium bg-[#030213] text-white hover:bg-[#030213]/80 transition-colors disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-white text-rose-600 border border-[#ececf0] hover:bg-rose-50 hover:border-rose-200 transition-colors"
                           >
-                            Yes
+                            <RefreshCw className="w-3 h-3" />
+                            Reset Account
                           </button>
+                        )}
+
+                        {/* Suspend Toggle */}
+                        {user.company_id && !isProtected && (
                           <button
-                            onClick={() => setConfirmingDemote(null)}
-                            className="px-2.5 py-1 rounded-md text-xs font-medium border border-[#ececf0] text-[#6b7280] hover:bg-[#f9f9f9]"
+                            onClick={() => toggleSuspendCompanyMutation.mutate({ 
+                              companyId: user.company_id as string, 
+                              status: isSuspended ? 'active' : 'suspended' 
+                            })}
+                            disabled={toggleSuspendCompanyMutation.isPending}
+                            title={isSuspended ? "Unsuspend Business" : "Suspend Business"}
+                            className={`p-1.5 rounded-md transition-colors ${
+                              isSuspended 
+                                ? 'text-red-600 bg-red-50 hover:bg-red-100' 
+                                : 'text-[#9ca3af] hover:text-red-600 hover:bg-red-50'
+                            }`}
                           >
-                            No
+                            <AlertTriangle className="w-3.5 h-3.5" />
                           </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            posthog.capture('super_admin_demote_clicked', { user_id: user.id, email: user.email });
-                            setConfirmingDemote(user.id);
-                          }}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-white text-[#6b7280] border border-[#ececf0] hover:bg-[#f9f9f9] hover:border-[#d1d5db] transition-colors"
-                        >
-                          <ShieldOff className="w-3 h-3" />
-                          Demote
-                        </button>
-                      )}
+                        )}
 
                       {/* PostHog drill-through */}
                       <a
@@ -500,7 +581,7 @@ export default function GlobalSettingsPage() {
           </div>
 
           {/* Footer */}
-          {!usersLoading && filteredUsers && filteredUsers.length > 0 && (
+          {!usersLoading && filteredUsers && filteredUsers.length > 0 && activeTab === 'tenants' && (
             <div className="px-6 py-3 border-t border-[#ececf0] bg-[#fffaef] flex items-center justify-between">
               <p className="text-xs text-[#9ca3af]">
                 Showing {filteredUsers.length} of {allUsers?.length ?? 0} users
@@ -509,6 +590,81 @@ export default function GlobalSettingsPage() {
                 Role changes take effect on next login
               </p>
             </div>
+          )}
+          </>
+          )}
+
+          {activeTab === 'employees' && (
+            <>
+              {/* Search & Filters */}
+              <div className="px-6 py-4 bg-[#fffdf5] border-b border-[#ececf0]">
+                <div className="relative w-full sm:max-w-md">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9ca3af]" />
+                  <input
+                    type="text"
+                    placeholder="Search by name, email, or department…"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 text-sm bg-white border border-[#ececf0] rounded-md focus:outline-none focus:border-[#030213]/30 focus:ring-1 focus:ring-[#030213]/10 placeholder:text-[#c4c4c4] transition"
+                  />
+                </div>
+              </div>
+
+              {/* Table header */}
+              <div className="grid grid-cols-[1.5fr_1fr_1fr_100px] px-6 py-2.5 bg-[#fffaef] border-b border-[#ececf0]">
+                {['Employee', 'Business', 'Role / Dept', 'Status'].map(h => (
+                  <span key={h} className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af]">{h}</span>
+                ))}
+              </div>
+
+              {/* Rows */}
+              <div className="divide-y divide-[#ececf0]">
+                {employeesLoading ? (
+                  <div className="p-8 text-center text-sm text-[#9ca3af]">Loading employees...</div>
+                ) : allPlatformEmployees?.length === 0 ? (
+                  <div className="p-8 text-center text-sm text-[#9ca3af]">No employees found.</div>
+                ) : (
+                  allPlatformEmployees
+                    ?.filter(emp => !search || 
+                      emp.full_name?.toLowerCase().includes(search.toLowerCase()) || 
+                      emp.email?.toLowerCase().includes(search.toLowerCase()) ||
+                      emp.department?.toLowerCase().includes(search.toLowerCase())
+                    )
+                    .map(emp => (
+                    <div key={emp.id} className="grid grid-cols-[1.5fr_1fr_1fr_100px] px-6 py-4 gap-4 items-center hover:bg-[#fffdf5] transition-colors">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-full bg-[#ececf0] flex items-center justify-center text-[#6b7280] font-semibold text-sm shrink-0">
+                          {emp.full_name?.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-[#030213] truncate">{emp.full_name}</p>
+                          <p className="text-xs text-[#9ca3af] truncate">{emp.email}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="min-w-0">
+                        <p className="text-sm text-[#030213] truncate">{emp.companies?.name || '—'}</p>
+                      </div>
+
+                      <div className="min-w-0">
+                        <p className="text-sm text-[#6b7280] truncate">{emp.position || '—'}</p>
+                        {emp.department && <p className="text-xs text-[#9ca3af] truncate">{emp.department}</p>}
+                      </div>
+
+                      <div>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border ${
+                          emp.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 
+                          emp.status === 'inactive' ? 'bg-gray-100 text-gray-600 border-gray-200' :
+                          'bg-amber-50 text-amber-700 border-amber-200'
+                        }`}>
+                          {emp.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </>
           )}
         </div>
 

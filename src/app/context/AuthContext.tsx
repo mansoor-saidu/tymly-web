@@ -38,7 +38,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           while (retries > 0 && !adminUser) {
             const { data, error } = await supabase
               .from('admin_users')
-              .select('*')
+              .select('*, companies(status)')
               .eq('email', session.user.email)
               .single();
               
@@ -66,7 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
               
             if (data) {
-              adminUser = data;
+              adminUser = { ...data, company_status: data.companies?.status || 'active' };
               break;
             }
             
@@ -124,7 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         while (retries > 0 && !adminUser) {
           const { data, error } = await supabase
             .from('admin_users')
-            .select('*')
+            .select('*, companies(status)')
             .eq('email', session.user.email)
             .single();
 
@@ -151,7 +151,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
 
           if (data) {
-            adminUser = data;
+            adminUser = { ...data, company_status: data.companies?.status || 'active' };
             break;
           }
           await new Promise(resolve => setTimeout(resolve, 600));

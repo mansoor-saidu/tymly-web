@@ -58,6 +58,36 @@ export default function OnboardingPage() {
     setLoading(true);
 
     try {
+      // 1. Create Company
+      const { data: company, error: companyError } = await supabase
+        .from('companies')
+        .insert({ name: formData.business_name })
+        .select()
+        .single();
+
+      if (companyError) {
+        console.error('Company creation error:', companyError);
+        throw new Error('Failed to create company.');
+      }
+
+      // 2. Create System Settings
+      const { error: settingsError } = await supabase
+        .from('system_settings')
+        .insert({
+           company_id: company.id,
+           office_latitude: 37.7749, // San Francisco default
+           office_longitude: -122.4194,
+           office_radius_meters: 100,
+           work_start_time: '09:00:00',
+           late_grace_period_minutes: 15
+        });
+
+      if (settingsError) {
+        console.error('Settings creation error:', settingsError);
+        throw new Error('Failed to initialize settings.');
+      }
+
+      // 3. Update Admin User
       const { error: updateError } = await supabase
         .from('admin_users')
         .update({
@@ -65,6 +95,7 @@ export default function OnboardingPage() {
           phone_number: formData.phone_number,
           employee_size: formData.employee_size,
           how_did_you_hear: formData.how_did_you_hear,
+          company_id: company.id
         })
         .eq('id', user?.id);
 
@@ -109,11 +140,14 @@ export default function OnboardingPage() {
       supabase.functions.invoke('send-email', {
         body: {
           to: user?.email,
-          subject: 'Welcome to Tymly! Let\'s automate your HR 🚀',
+          subject: 'Welcome to Tymly! Let\'s automate your HR',
           html: welcomeHtml,
           from: 'Mansoor at Tymly <hello@usetymly.com>'
         }
       }).catch(err => console.error('Failed to send welcome email:', err));
+
+      // Temporarily store company_id so Step 2 can use it
+      sessionStorage.setItem('temp_company_id', company.id);
 
       // Move to step 2 instead of redirecting immediately
       setStep(2);
@@ -154,10 +188,13 @@ export default function OnboardingPage() {
           const polygon = generatePolygonAroundPoint(latitude, longitude);
           
           // Get the settings ID for this company
+          const currentCompanyId = user?.company_id || sessionStorage.getItem('temp_company_id');
+          if (!currentCompanyId) throw new Error("Company ID missing. Please reload the page.");
+
           const { data: settings, error: settingsError } = await supabase
             .from('system_settings')
             .select('id')
-            .eq('company_id', user?.company_id)
+            .eq('company_id', currentCompanyId)
             .single();
             
           if (settingsError) throw settingsError;

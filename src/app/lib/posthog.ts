@@ -5,8 +5,7 @@ const posthogHost = import.meta.env.VITE_POSTHOG_HOST;
 
 if (typeof window !== 'undefined' && posthogKey) {
   posthog.init(posthogKey, {
-    api_host: posthogHost || 'https://us.i.posthog.com',
-    defaults: '2026-01-30',
+    api_host: (posthogHost || 'https://us.i.posthog.com').replace(/['"]/g, '').trim(),
     person_profiles: 'identified_only',
     loaded: (posthog) => {
       if (import.meta.env.DEV) {
